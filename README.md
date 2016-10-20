@@ -32,15 +32,17 @@ Install Scala, sbt, cmake, Maven, the Android SDK, and the Android NDK.
 #### Clone this repo
 
 ```bash
-git clone git@github.com:BIDData/BIDMach_Android.git
+git clone https://github.com/BIDData/BIDMach_Android.git
 ```
 
 #### Clone BIDMat
 
 ```bash
-git clone git@github.com:BIDData/BIDMat.git
+git clone https://github.com/BIDData/BIDMat.git
 cd BIDMat
-git checkout opencl
+
+# Switch to OpenCL branch since main uses CUDA
+git checkout opencl 
 cd ..
 ```
 
@@ -66,30 +68,40 @@ export PATH=$PATH:$ANDROID_ARM_TOOLCHAIN/bin
 #### Build JOCL (If using OpenCL)
 
 ```bash
-# install [android-cmake](https://github.com/taka-no-me/android-cmake)
-# Linux:
-cd /usr/share/cmake-3.2/Modules/
-sudo wget https://raw.githubusercontent.com/taka-no-me/android-cmake/master/android.toolchain.cmake
-
 cd <development-base-directory>
-git clone git@github.com:gpu/JOCL.git
-git clone git@github.com:gpu/JOCLCommon.git
+git clone https://github.com/gpu/JOCL.git
+
+# Doesn't seem necessary?
+git clone https://github.com/gpu/JOCLCommon.git
+
 cd JOCL
 
 # Build the native OpenCL libraries for Android
 mkdir build
 cd build
+
 # See [android-cmake] for extended parameter descriptions
+# install [android-cmake](https://github.com/taka-no-me/android-cmake)
+# Linux Only:
+cd /usr/share/cmake-3.2/Modules/
+sudo wget https://raw.githubusercontent.com/taka-no-me/android-cmake/master/android.toolchain.cmake
 cmake -DCMAKE_TOOLCHAIN_FILE=android.toolchain -DCMAKE_BUILD_TYPE=Release -DANDROID_ABI=armeabi-v7a -DANDROID_NATIVE_API_LEVEL=21 ..
+cmake --build .
+cd ..
+
+# Mac Only:
+sudo wget https://raw.githubusercontent.com/taka-no-me/android-cmake/master/android.toolchain.cmake
+cmake -DCMAKE_TOOLCHAIN_FILE=android.toolchain.cmake -DCMAKE_BUILD_TYPE=Release -DANDROID_ABI=armeabi-v7a -DANDROID_NATIVE_API_LEVEL=21 ..
 cmake --build .
 cd ..
 
 # Build the .jar file
 mvn clean install -DskipTests
 
-# Copy the files into the correct locations
-cp jocl-2.0.1-SNAPSHOT.jar ../BIDMat/lib/
-cp jocl-2.0.1-SNAPSHOT.jar ../BIDMach_Android/app/libs/
+# Copy the built files into the correct locations
+cd target
+cp jocl-2.0.1-SNAPSHOT.jar ../../BIDMat/lib/
+cp jocl-2.0.1-SNAPSHOT.jar ../../BIDMach_Android/app/libs/
 
 cd ..
 ```
@@ -103,7 +115,8 @@ for more details.
 git clone https://github.com/xianyi/OpenBLAS.git
 cd OpenBLAS
 
-make HOSTCC=gcc CC=arm-linux-androideabi-gcc NO_LAPACK=1 TARGET=ARMV7
+# Added 'NOFORTRAN=1' flag, doesn't build otherwise
+make HOSTCC=gcc CC=arm-linux-androideabi-gcc NO_LAPACK=1 TARGET=ARMV7 NOFORTRAN=1
 make install PREFIX=../BIDMat/jni/src/openblas
 
 cd ../BIDMat/jni/src/
@@ -142,11 +155,18 @@ Next, uncomment the sections in `BIDMat/jni/src/jni/Android.mk` corresponding to
 ```bash
 cd BIDMat
 # Fetch the dependencies
+# NOTE: Mac seems to be fetching more libraries than it needs to be? We're build for Android, so even with these flags, I still get Mac libraries?
 ARCH=linux-arm ./getdevlibs.sh
 
 # Build the native libraries for BIDMat
 cd jni/src
+# NOTE: BIDMat/jni/src/jni/Application.mk has 'armeabi-v7a-hard' for target architecture. But Android NDK says it no longer 
+# supports 'armeabi-v7a-hard' and says to use 'armeabi-v7a' instead. So I did that. After that, no errors when running 
+# 'ndk-build clean'
 ndk-build clean
+
+# This part fails; 
+# See my terminal logs here: https://gist.github.com/spectreweb/20d7bfefe05bf78e875e0777f47dcb57
 ndk-build
 cd ../..
 cp jni/src/libs/armeabi-v7a/*.so ../BIDMach_Android/app/src/main/libs/armeabi-v7a/
